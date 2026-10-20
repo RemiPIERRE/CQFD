@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CQFD – Ce qu'il fallait déduire</title>
+<meta name="description" content="Jeu de déduction à grille logique, infini. Version test.">
+<meta name="theme-color" content="#F7F7FE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#13163A" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CQFD">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/instrument-sans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <main id="home" class="view home">
+    <div class="home-in">
+      <div class="top">
+        <span class="chip off" id="streak"><i></i><span id="streak-t">Série · 0 jour</span></span>
+        <button class="icon-btn txt" id="btn-how" aria-label="Comment jouer">?</button>
+      </div>
+
+      <header class="brand">
+        <h1 class="logo">CQFD</h1>
+        <svg class="squiggle" viewBox="0 0 150 14" aria-hidden="true"><path d="M3 8c14-8 24 6 38-1s23-6 37 0 24 6 36-1 24-3 33 0"/></svg>
+        <p class="tag">Ce qu'il fallait déduire.</p>
+      </header>
+
+      <section class="card" aria-labelledby="lvl-t">
+        <div class="card-head"><h2 class="eyebrow" id="lvl-t">Parcours</h2><span class="tier" id="tier"></span></div>
+        <div class="lvl-main">
+          <div class="lvl-num"><small>Niveau</small><b id="lvl-n">1</b></div>
+          <div class="lvl-sketch" id="sketch" aria-hidden="true"></div>
+        </div>
+        <p class="meta" id="lvl-meta"></p>
+        <button class="btn primary" id="btn-play">Jouer</button>
+      </section>
+
+      <button class="quick" id="btn-quick" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>
+        <span class="q-txt"><b>Partie rapide</b><small id="quick-sub">Une petite grille · environ 2 min</small></span>
+        <span class="q-go" aria-hidden="true">›</span>
+      </button>
+
+      <section class="card" aria-labelledby="day-t">
+        <div class="card-head"><h2 class="eyebrow" id="day-t">Défi du jour</h2><span class="tier" id="day-date"></span></div>
+        <p class="daily-copy">Même grille pour tout le monde aujourd'hui : cinq maisons, quatre catégories, une seule solution.</p>
+        <div class="daily-foot">
+          <span class="daily-state" id="day-state"></span>
+          <button class="btn" id="btn-daily">Relever le défi</button>
+        </div>
+      </section>
+
+      <section class="jump" aria-labelledby="jump-t">
+        <h2 class="eyebrow" id="jump-t">Essayer un niveau précis</h2>
+        <div class="chips" id="jump"></div>
+      </section>
+
+      <div class="stats">
+        <div><b id="st-solved">0</b><span>niveaux résolus</span></div>
+        <div><b id="st-stars">0</b><span>étoiles</span></div>
+        <div><b id="st-best">0</b><span>meilleure série</span></div>
+      </div>
+
+      <section class="feedback" aria-labelledby="fb-t">
+        <h2 class="eyebrow" id="fb-t">Version test</h2>
+        <p class="meta">Merci de tester ! Ton journal de jeu (temps, indices, abandons) permet de régler la difficulté.</p>
+        <button class="btn" id="btn-log" type="button">Copier mon journal de jeu</button>
+      </section>
+    </div>
+  </main>
+
+  <section id="game" class="view game" hidden>
+    <header class="g-bar">
+      <button class="icon-btn" id="g-back" aria-label="Retour à l'accueil"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="g-title"><b id="g-name">Niveau 1</b><span id="g-sub"></span></div>
+      <div class="g-time" id="g-time" role="timer" aria-label="Temps écoulé">0:00</div>
+    </header>
+
+    <div class="g-board"><div id="board" class="board"></div></div>
+
+    <div class="g-clues">
+      <div class="c-head"><h2>Énoncés</h2><span id="c-count"></span></div>
+      <div class="c-scroll"><ol id="clue-list"></ol></div>
+    </div>
+
+    <nav class="g-tools" aria-label="Actions">
+      <button class="tool" id="t-undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span>Annuler</span></button>
+      <button class="tool" id="t-check"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg><span>Vérifier</span></button>
+      <button class="tool" id="t-hint"><span class="pub" aria-hidden="true">PUB</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span>Indice</span></button>
+      <button class="tool" id="t-clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span class="tl">Effacer</span></button>
+    </nav>
+
+    <div id="note" class="note" role="status" hidden></div>
+  </section>
+
+</div>
+<div id="layer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
