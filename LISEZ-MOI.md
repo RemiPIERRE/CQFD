@@ -1,5 +1,7 @@
 # CQFD – version test 2.1 (GitHub Pages)
 
+Nouveau en 2.2 : catégorie **Sport** (10 sports, « pratique le… »). Les grilles générées changent (donc aussi le défi du jour) ; les parties en cours sauvegardées ne bougent pas.
+
 ## Publier (une seule fois, ~5 minutes)
 1. Crée un compte sur github.com puis un **nouveau dépôt public** (ex. `cqfd`).
 2. Bouton **Add file → Upload files** : glisse **tout le contenu** de ce dossier

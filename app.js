@@ -105,6 +105,18 @@ var Engine = (function () {
       E('trompette', '🎺', 'le trompettiste', 'de la trompette', 'de trompette'),
       E('batterie', '🥁', 'le batteur', 'de la batterie', 'de batterie'),
       E('saxo', '🎷', 'le saxophoniste', 'du saxophone', 'de saxophone')
+    ] },
+    { id: 'sport', name: 'Sport', verb: 'pratique', neg: 'ne pratique pas', hue: 335, items: [
+      E('football', '⚽', 'le footballeur', 'le football', 'de football'),
+      E('tennis', '🎾', 'le joueur de tennis', 'le tennis', 'de tennis'),
+      E('basket', '🏀', 'le basketteur', 'le basket', 'de basket'),
+      E('natation', '🏊', 'le nageur', 'la natation', 'de natation'),
+      E('cyclisme', '🚴', 'le cycliste', 'le cyclisme', 'de cyclisme'),
+      E('judo', '🥋', 'le judoka', 'le judo', 'de judo'),
+      E('rugby', '🏉', 'le rugbyman', 'le rugby', 'de rugby'),
+      E('ski', '⛷️', 'le skieur', 'le ski', 'de ski'),
+      E('escrime', '🤺', "l'escrimeur", "l'escrime", "d'escrime"),
+      E('golf', '⛳', 'le golfeur', 'le golf', 'de golf')
     ] }
   ];
 
@@ -605,7 +617,7 @@ var Engine = (function () {
   prog.v = 2;
   function save() { store.set('prog', prog); }
   save();
-  var VERSION = 'test-2.1';
+  var VERSION = 'test-2.2';
   function logAdd(r) {
     prog.log = prog.log || [];
     prog.log.push(r);
