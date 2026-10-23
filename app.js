@@ -140,13 +140,13 @@ var Engine = (function () {
       case 'at':
         if (house) {
           var H = cap(A.it.o);
-          if (p === 0) return H + ' est la première, tout à gauche.';
-          if (p === N - 1) return H + ' est la dernière, tout à droite.';
+          if (p === 0) return H + ' est la première.';
+          if (p === N - 1) return H + ' est la dernière.';
           if (p === mid) return H + ' est celle du milieu.';
-          return H + ' porte le numéro ' + (p + 1) + '.';
+          return H + ' porte le n° ' + (p + 1) + '.';
         }
-        if (p === 0) return S + ' habite la première maison, tout à gauche.';
-        if (p === N - 1) return S + ' habite la dernière maison, tout à droite.';
+        if (p === 0) return S + ' habite la première maison.';
+        if (p === N - 1) return S + ' habite la dernière maison.';
         if (p === mid) return S + ' habite la maison du milieu.';
         return S + ' habite la maison n°' + (p + 1) + '.';
       case 'notat':
@@ -154,7 +154,7 @@ var Engine = (function () {
           var H2 = cap(A.it.o);
           if (p === 0) return H2 + " n'est pas la première.";
           if (p === N - 1) return H2 + " n'est pas la dernière.";
-          return H2 + " ne porte pas le numéro " + (p + 1) + '.';
+          return H2 + " ne porte pas le n° " + (p + 1) + '.';
         }
         if (p === 0) return S + " n'habite pas la première maison.";
         if (p === N - 1) return S + " n'habite pas la dernière maison.";
