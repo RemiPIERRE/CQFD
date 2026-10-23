@@ -602,14 +602,14 @@ var Engine = (function () {
   };
   /* réglages de l'économie et des pubs (faciles à ajuster) */
   var ECON = { hintPrices: [500, 750, 1000], gift: 1000, startCoins: 500, perStep: 4, noHintBonus: 0.5, dailyMult: 1.5, quickMult: 0.5, extremeMult: 2 };
-  var ADS = { rewarded: 30, inter: 30, skipAfter: 5, every: 5, fromLevel: 10 };
+  var ADS = { rewarded: 30, inter: 30, skipAfter: 5, every: 5, fromLevel: 10, quickEvery: 4 };
   var CUR = { one: 'gommette', many: 'gommettes' };
   try { if (/[?&]fast\b/.test(location.search)) { ADS.rewarded = 2; ADS.inter = 2; ADS.skipAfter = 1; } } catch (e) { /* démo rapide indisponible */ }
   function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f'); }
   function cur(n) { return fmtN(n) + ' ' + (n > 1 ? CUR.many : CUR.one); }
 
   /* progression : une ancienne sauvegarde est complétée, jamais effacée */
-  var DEFAULTS = { level: 1, solved: 0, stars: 0, streak: 0, best: 0, lastDaily: '', daily: {}, done: {}, seenHow: false, coins: ECON.startCoins, giftDay: '', sinceAd: 0, log: [] };
+  var DEFAULTS = { level: 1, solved: 0, stars: 0, streak: 0, best: 0, lastDaily: '', daily: {}, done: {}, seenHow: false, coins: ECON.startCoins, giftDay: '', sinceAd: 0, sinceAdQ: 0, log: [] };
   var prog = store.get('prog', null) || {};
   Object.keys(DEFAULTS).forEach(function (k) {
     if (!(k in prog)) prog[k] = (DEFAULTS[k] && typeof DEFAULTS[k] === 'object') ? JSON.parse(JSON.stringify(DEFAULTS[k])) : DEFAULTS[k];
@@ -617,7 +617,7 @@ var Engine = (function () {
   prog.v = 2;
   function save() { store.set('prog', prog); }
   save();
-  var VERSION = 'test-2.2';
+  var VERSION = 'test-2.3';
   function logAdd(r) {
     prog.log = prog.log || [];
     prog.log.push(r);
@@ -731,6 +731,12 @@ var Engine = (function () {
     if (o.mode === 'level' && !o.adDone && prog.sinceAd >= ADS.every && o.level >= ADS.fromLevel) {
       playAd({ secs: ADS.inter, skipAfter: ADS.skipAfter, text: 'Publicité de démonstration. Dans la vraie version : 30 secondes au plus, à passer au bout de quelques secondes.',
         onDone: function () { prog.sinceAd = 0; save(); o.adDone = true; startGame(o); } });
+      return;
+    }
+    // partie rapide : une pub passable toutes les 4 parties terminées
+    if (o.mode === 'quick' && !o.adDone && (prog.sinceAdQ || 0) >= ADS.quickEvery) {
+      playAd({ secs: ADS.inter, skipAfter: ADS.skipAfter, text: 'Publicité de démonstration. Dans la vraie version : 30 secondes au plus, à passer au bout de quelques secondes.',
+        onDone: function () { prog.sinceAdQ = 0; save(); o.adDone = true; startGame(o); } });
       return;
     }
     layer.innerHTML = '<div class="load" role="status">Préparation de la grille…</div>';
@@ -1089,7 +1095,7 @@ var Engine = (function () {
     G.reward = winReward();
     prog.coins += G.reward.coins;
     if (G.mode === 'quick') {
-      prog.quick = (prog.quick || 0) + 1;
+      prog.quick = (prog.quick || 0) + 1; prog.sinceAdQ = (prog.sinceAdQ || 0) + 1;
       prog.quickBest = Math.min(prog.quickBest || 1e9, G.elapsed);
     } else if (G.mode === 'level') {
       var prev = prog.done[G.level] || 0;

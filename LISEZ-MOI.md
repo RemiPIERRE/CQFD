@@ -1,5 +1,7 @@
 # CQFD – version test 2.1 (GitHub Pages)
 
+Nouveau en 2.3 : une pub passable toutes les 4 parties rapides terminées (réglage `ADS.quickEvery`).
+
 Nouveau en 2.2 : catégorie **Sport** (10 sports, « pratique le… »). Les grilles générées changent (donc aussi le défi du jour) ; les parties en cours sauvegardées ne bougent pas.
 
 ## Publier (une seule fois, ~5 minutes)
