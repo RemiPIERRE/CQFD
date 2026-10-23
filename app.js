@@ -454,12 +454,26 @@ var Engine = (function () {
     return out;
   })();
 
-  function isBreather(L) { return L >= 4 && L % 4 === 0; }
+  // un niveau « extrême » toutes les dizaines (10, 20, 30…) : grille plus grande, énoncés faibles, raisonnement long
+  function isExtreme(L) { return L >= 10 && L % 10 === 0; }
+  function isBreather(L) { return L >= 4 && L % 4 === 0 && !isExtreme(L); }
+  var EXTREME_W = { same: 1, diff: 2, at: 0.5, notat: 1.5, imm: 1, next: 2, left: 2.5, end: 0.5, notend: 1.5, or: 3, between: 3 };
+  var ROUNDS_BASE = { 12: 4.5, 15: 5.5, 16: 7, 20: 8.5, 24: 9.5, 25: 9.5, 30: 11.5 };   // profondeur moyenne d'un niveau ordinaire, par taille
 
   function levelParams(L) {
     L = Math.max(1, L | 0);
-    var j = L - 1 - Math.floor(L / 4);            // rang dans l'échelle (les niveaux « souffle » n'avancent pas)
+    // rang dans l'échelle : les niveaux « souffle » et « extrême » n'y font pas avancer
+    var j = (L - 1) - (Math.floor((L - 1) / 4) - Math.floor((L - 1) / 20)) - Math.floor((L - 1) / 10);
     var p, e, prune, bias;
+    if (isExtreme(L)) {
+      var x = j + 6;
+      if (x >= LADDER.length) {                   // en haut de l'échelle : toujours la grande grille 6×5, avec le raisonnement le plus long
+        return { N: 6, K: 5, w: EXTREME_W, minRounds: 14, minClues: 3, maxClues: 36, prune: 1, bias: 0.35, shuffle: true, name: 'Extrême', level: L, attempts: 40, extreme: true };
+      }
+      e = LADDER[x];
+      var cells = e.N * e.K, base = ROUNDS_BASE[cells] || 11.5;
+      return { N: e.N, K: e.K, w: EXTREME_W, minRounds: Math.min(Math.round(base + 3), 14), minClues: 3, maxClues: e.maxClues + 4, prune: 1, bias: 0.35, shuffle: true, name: 'Extrême', level: L, attempts: 40, extreme: true };
+    }
     if (isBreather(L)) {
       // le souffle reprend une grille plus petite (5 rangs plus bas dans l'échelle, 4×4 au plus) avec des énoncés qui avancent vite
       var q = Math.min(Math.max(0, j - 5), LADDER.length - 1);
@@ -539,7 +553,7 @@ var Engine = (function () {
   }
 
   var api = {
-    POOL: POOL, POP: POP, generate: generate, levelParams: levelParams, isBreather: isBreather, dailyParams: dailyParams, quickParams: quickParams,
+    POOL: POOL, POP: POP, generate: generate, levelParams: levelParams, isBreather: isBreather, isExtreme: isExtreme, dailyParams: dailyParams, quickParams: quickParams,
     propagate: propagate, holds: holds, clueText: clueText, hint: hint, derive: derive, checkBoard: checkBoard, makeRng: makeRng
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -575,7 +589,7 @@ var Engine = (function () {
     set: function (k, v) { mem[k] = v; try { window.localStorage.setItem('cqfd:' + k, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } }
   };
   /* réglages de l'économie et des pubs (faciles à ajuster) */
-  var ECON = { hintPrices: [500, 750, 1000], gift: 1000, startCoins: 500, perStep: 4, noHintBonus: 0.5, dailyMult: 1.5, quickMult: 0.5 };
+  var ECON = { hintPrices: [500, 750, 1000], gift: 1000, startCoins: 500, perStep: 4, noHintBonus: 0.5, dailyMult: 1.5, quickMult: 0.5, extremeMult: 2 };
   var ADS = { rewarded: 30, inter: 30, skipAfter: 5, every: 5, fromLevel: 10 };
   var CUR = { one: 'gommette', many: 'gommettes' };
   try { if (/[?&]fast\b/.test(location.search)) { ADS.rewarded = 2; ADS.inter = 2; ADS.skipAfter = 1; } } catch (e) { /* démo rapide indisponible */ }
@@ -591,7 +605,7 @@ var Engine = (function () {
   prog.v = 2;
   function save() { store.set('prog', prog); }
   save();
-  var VERSION = 'test-2';
+  var VERSION = 'test-2.1';
   function logAdd(r) {
     prog.log = prog.log || [];
     prog.log.push(r);
@@ -607,7 +621,7 @@ var Engine = (function () {
   function writeSaves() { store.set('saves', saves); }
   function hasProgress(g) { return g.elapsed >= 15 || g.marks.some(function (x) { return x; }) || g.given.some(function (x) { return x >= 0; }); }
   function snapshot() {
-    return { v: 2, mode: G.mode, level: G.level, date: G.date, name: G.prm.name, breather: !!G.prm.breather, pz: G.pz, marks: G.marks, given: G.given,
+    return { v: 2, mode: G.mode, level: G.level, date: G.date, name: G.prm.name, breather: !!G.prm.breather, extreme: !!G.prm.extreme, pz: G.pz, marks: G.marks, given: G.given,
              hist: G.hist.slice(-60), clueDone: G.clueDone, elapsed: G.elapsed, hints: G.hints, mistakes: G.mistakes, sigWrong: G.sigWrong };
   }
   function saveGame() {
@@ -659,8 +673,10 @@ var Engine = (function () {
     if (saves.daily && saves.daily.date !== ymd()) dropSave('daily', true);
     var sl = saves.level, L = sl ? sl.level : prog.level, prm = E.levelParams(L), today = ymd(), d = prog.daily[today], st = streakNow(), sd = saves.daily, sq = saves.quick;
     $('#lvl-n').textContent = L;
+    var xtr = sl ? !!sl.extreme : E.isExtreme(L);
     $('#tier').textContent = sl ? sl.name : prm.name;
-    $('#lvl-meta').textContent = (sl ? sl.pz.N : prm.N) + ' maisons · ' + (sl ? sl.pz.K : prm.K) + ' catégories' + (sl ? ' · en cours, ' + fmtTime(sl.elapsed) : '');
+    $('#tier').classList.toggle('extreme', xtr);
+    $('#lvl-meta').textContent = (sl ? sl.pz.N : prm.N) + ' maisons · ' + (sl ? sl.pz.K : prm.K) + ' catégories' + (sl ? ' · en cours, ' + fmtTime(sl.elapsed) : xtr ? ' · récompense doublée' : '');
     $('#sketch').innerHTML = sketchSVG(sl ? sl.pz.N : prm.N, sl ? sl.pz.K : prm.K, L);
     $('#btn-play').textContent = (sl || L > 1) ? 'Reprendre le niveau ' + L : 'Commencer';
     $('#day-date').textContent = dateLabel();
@@ -677,9 +693,6 @@ var Engine = (function () {
     $('#st-best').textContent = prog.best;
     $('#quick-sub').textContent = sq ? 'Partie en cours · ' + fmtTime(sq.elapsed) + ' · touche pour reprendre'
       : 'Une petite grille · environ 2 min' + (prog.quickBest ? ' · record ' + fmtTime(prog.quickBest) : '');
-    var chips = '';
-    [1, 5, 10, 15, 20, 30, 40, 50].forEach(function (n) { chips += '<button class="jchip" data-level="' + n + '" aria-label="Niveau ' + n + '">' + n + '</button>'; });
-    $('#jump').innerHTML = chips;
   }
 
   /* ---------- couches ---------- */
@@ -729,13 +742,14 @@ var Engine = (function () {
       show('game');
       startTimer();
       if (!prog.seenHow) openHow();
+      else if (prm.extreme) toast('Niveau extrême : les indices sont les bienvenus, et la récompense est doublée.', 5200);
     }, 40);
   }
 
   function resumeGame(s) {
     closeLayer(); hideNote(); clearInterval(timerId);
     G = {
-      mode: s.mode, level: s.level || 0, date: s.date || '', pz: s.pz, prm: { name: s.name, breather: !!s.breather }, N: s.pz.N, K: s.pz.K,
+      mode: s.mode, level: s.level || 0, date: s.date || '', pz: s.pz, prm: { name: s.name, breather: !!s.breather, extreme: !!s.extreme }, N: s.pz.N, K: s.pz.K,
       marks: s.marks.slice(), given: s.given.slice(), hist: s.hist || [], clueDone: s.clueDone || {}, elapsed: s.elapsed || 0,
       hints: s.hints || 0, mistakes: s.mistakes || 0, won: false, sigWrong: s.sigWrong || '', err: [], hintCell: -1, hintClue: -1, sig: {}
     };
@@ -756,11 +770,11 @@ var Engine = (function () {
   var replaceCtx = null;
   function askReplace(s, o) {
     replaceCtx = { s: s, o: o };
-    var what = s.mode === 'daily' ? 'Le défi du jour' : s.mode === 'quick' ? 'Ta partie rapide' : 'Le niveau ' + s.level;
+    var what = s.mode === 'daily' ? 'le défi du jour' : s.mode === 'quick' ? 'une partie rapide' : 'le niveau ' + s.level;
     var other = o.mode === 'quick' ? 'Nouvelle partie rapide' : o.mode === 'daily' ? 'Abandonner et jouer le défi' : 'Abandonner et jouer le niveau ' + o.level;
     openLayer('<div class="scrim" data-close></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="rp-t">' +
       '<h3 id="rp-t">Grille en cours</h3>' +
-      '<p class="meta">' + what + ' est commencé (' + fmtTime(s.elapsed) + ' de jeu). Tu peux le reprendre là où tu l\'as laissé.</p>' +
+      '<p class="meta">Tu as une grille en cours : ' + what + ' (' + fmtTime(s.elapsed) + ' de jeu). Tu peux la reprendre là où tu l\'as laissée.</p>' +
       '<div class="stack"><button class="btn primary" data-do="rp-resume">Reprendre ma grille</button>' +
       '<button class="btn" data-do="rp-new">' + other + '</button>' +
       '<button class="linkbtn" data-close>Annuler</button></div></div>', '[data-do="rp-resume"]');
@@ -1049,12 +1063,14 @@ var Engine = (function () {
   /* victoire */
   function winReward() {
     var first = G.mode === 'level' ? !prog.done[G.level] : G.mode === 'daily' ? !prog.daily[G.date] : true;
-    if (!first) return { coins: 0, bonus: false };
+    if (!first) return { coins: 0, bonus: false, extreme: false };
     var steps = G.pz.steps.filter(function (s) { return typeof s.why === 'number'; }).length;
     var bonus = G.hints === 0, mult = bonus ? 1 + ECON.noHintBonus : 1;
     if (G.mode === 'daily') mult *= ECON.dailyMult;
     if (G.mode === 'quick') mult *= ECON.quickMult;
-    return { coins: Math.round(steps * ECON.perStep * mult / 5) * 5, bonus: bonus };
+    var xtr = !!(G.prm && G.prm.extreme);
+    if (xtr) mult *= ECON.extremeMult;
+    return { coins: Math.round(steps * ECON.perStep * mult / 5) * 5, bonus: bonus, extreme: xtr };
   }
   function recordWin(stars) {
     logRec(G, 'ok', stars);
@@ -1097,7 +1113,7 @@ var Engine = (function () {
       '<p class="stamp">CQFD</p>' +
       '<div class="grade"><span>' + grade + '</span><span class="stars" role="img" aria-label="' + G.stars + ' étoile' + (G.stars > 1 ? 's' : '') + ' sur 3">' + stars + '</span></div>' +
       '<p class="res">' + res + '</p>' +
-      (G.reward && G.reward.coins ? '<p class="gain"><i class="sticker"></i><span>+ ' + cur(G.reward.coins) + (G.reward.bonus ? ' · bonus sans indice' : '') + '</span></p>' : '') +
+      (G.reward && G.reward.coins ? '<p class="gain"><i class="sticker"></i><span>+ ' + cur(G.reward.coins) + (G.reward.bonus ? ' · bonus sans indice' : '') + (G.reward.extreme ? ' · niveau extrême ×2' : '') + '</span></p>' : '') +
       '<div class="acts">' + next + '<button class="btn' + (next ? '' : ' primary') + '" data-do="home">Accueil</button></div></div></div>',
       '.btn.primary');
   }
@@ -1146,10 +1162,6 @@ var Engine = (function () {
     var text = reportText();
     try { navigator.clipboard.writeText(text).then(function () { openLog(text, true); }, function () { openLog(text, false); }); }
     catch (e) { openLog(text, false); }
-  });
-  $('#jump').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-level]');
-    if (b) launch({ mode: 'level', level: +b.dataset.level });
   });
 
   $('#g-back').addEventListener('click', function () {

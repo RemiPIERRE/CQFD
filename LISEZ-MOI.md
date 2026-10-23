@@ -1,4 +1,4 @@
-# CQFD – version test 2 (GitHub Pages)
+# CQFD – version test 2.1 (GitHub Pages)
 
 ## Publier (une seule fois, ~5 minutes)
 1. Crée un compte sur github.com puis un **nouveau dépôt public** (ex. `cqfd`).
@@ -7,14 +7,16 @@
 3. **Settings → Pages** : *Source* = « Deploy from a branch », branche `main`, dossier `/ (root)` → **Save**.
 4. Après ~1 minute, le jeu est en ligne sur `https://TON-PSEUDO.github.io/cqfd/`.
 
-## Mettre à jour (de la version 1 à la version 2)
+## Mettre à jour (de la version 1 à la version 2.1)
 Dépose les nouveaux fichiers **dans le même dépôt, aux mêmes endroits** (Upload files remplace ceux qui existent).
 Ne change surtout pas le nom du dépôt : la progression des joueurs est liée à l'adresse du site.
 Les testeurs reçoivent la nouvelle version à leur prochaine ouverture (parfois à la suivante). Leur niveau, leurs étoiles,
 leur série et leur journal sont conservés ; ils reçoivent 500 gommettes de départ.
 
-## Ce que contient la version 2
+## Ce que contient cette version
 - Courbe de niveaux adoucie : 3 maisons jusqu'au niveau 14, une catégorie de plus par palier, un niveau « Souffle » tous les 4 niveaux.
+- Un niveau **« Extrême » toutes les dizaines** (10, 20, 30…) : grille plus grande, énoncés plus subtils (« entre », « ou »…), raisonnement long ; les indices y sont les bienvenus et la récompense est doublée.
+- Le choix d'un niveau précis a été retiré de l'accueil : on avance niveau par niveau.
 - La grille en cours est sauvegardée à chaque action et se reprend après fermeture de l'appli (bouton « Reprendre »). Le chrono s'arrête quand on quitte.
 - Gommettes (monnaie) : gagnées en résolvant des grilles ; un indice coûte 500, puis 750, puis 1000 par grille ; sinon, pub volontaire gratuite.
 - Cadeau du jour : une pub volontaire = 1 000 gommettes, une fois par jour.
@@ -22,7 +24,7 @@ leur série et leur journal sont conservés ; ils reçoivent 500 gommettes de d�
 - Le défi du jour est inchangé.
 
 ## Réglages (en haut du fichier `app.js`)
-`ECON` : prix des indices, cadeau, gommettes de départ, gains. `ADS` : durée des pubs de démonstration, délai avant « Passer », fréquence, niveau de départ.
+`ECON` : prix des indices, cadeau, gommettes de départ, gains, bonus des niveaux extrêmes. `ADS` : durée des pubs de démonstration, délai avant « Passer », fréquence, niveau de départ.
 En ajoutant `?fast` à l'adresse du jeu, les pubs durent 2 secondes (pratique pour tester).
 
 ## Installer sur le téléphone

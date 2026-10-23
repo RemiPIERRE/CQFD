@@ -369,3 +369,4 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .dlg p.meta b { color: var(--ink); }
 .copy .gain { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font: 600 15px var(--ui); color: var(--ink); }
 .ad .btn:disabled { opacity: .5; }
+.tier.extreme { color: var(--red); }
