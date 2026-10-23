@@ -23,7 +23,10 @@
   <main id="home" class="view home">
     <div class="home-in">
       <div class="top">
-        <span class="chip off" id="streak"><i></i><span id="streak-t">Série · 0 jour</span></span>
+        <div class="chips-l">
+          <span class="chip off" id="streak"><i></i><span id="streak-t">Série · 0 jour</span></span>
+          <span class="chip coins" id="coins" role="img" aria-label="Tes gommettes"><i class="sticker"></i><b id="coins-n">0</b></span>
+        </div>
         <button class="icon-btn txt" id="btn-how" aria-label="Comment jouer">?</button>
       </div>
 
@@ -46,6 +49,12 @@
       <button class="quick" id="btn-quick" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></svg>
         <span class="q-txt"><b>Partie rapide</b><small id="quick-sub">Une petite grille · environ 2 min</small></span>
+        <span class="q-go" aria-hidden="true">›</span>
+      </button>
+
+      <button class="quick gift" id="btn-gift" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h16v9H4zM3 7.5h18V11H3zM12 7.5V20"/><path d="M12 7.5C10 3.5 6.5 4.5 7.5 6.5c.5 1 2.5 1 4.5 1zM12 7.5c2-4 5.5-3 4.5-1-.5 1-2.5 1-4.5 1z"/></svg>
+        <span class="q-txt"><b>Cadeau du jour</b><small id="gift-sub">Regarde une pub · 1 000 gommettes</small></span>
         <span class="q-go" aria-hidden="true">›</span>
       </button>
 
@@ -94,7 +103,7 @@
     <nav class="g-tools" aria-label="Actions">
       <button class="tool" id="t-undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span>Annuler</span></button>
       <button class="tool" id="t-check"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg><span>Vérifier</span></button>
-      <button class="tool" id="t-hint"><span class="pub" aria-hidden="true">PUB</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span>Indice</span></button>
+      <button class="tool" id="t-hint"><span class="pub" id="hint-badge" aria-hidden="true">PUB</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg><span>Indice</span></button>
       <button class="tool" id="t-clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg><span class="tl">Effacer</span></button>
     </nav>
 

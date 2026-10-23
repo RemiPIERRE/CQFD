@@ -424,16 +424,57 @@ var Engine = (function () {
   var T_BASE = { same: 4, diff: 3, at: 2, notat: 1 };
   function mix(base, extra) { var o = {}, k; for (k in base) o[k] = base[k]; for (k in extra) o[k] = extra[k]; return o; }
 
+  /* Courbe des niveaux (v2) : une « échelle » de paliers, un niveau sur quatre est un « souffle » (plus facile).
+     Règle : on ne change qu'une chose à la fois. À taille fixe, seuls les énoncés se durcissent (types E0 → E5) ;
+     quand on ajoute une maison ou une catégorie, on repart d'énoncés plus simples.
+     La durée d'une grille dépend surtout de sa taille ; les types d'énoncés et la profondeur règlent la difficulté. */
+  var TIERS = [
+    T_BASE,                                                                                                   // E0 : égalités et positions
+    mix(T_BASE, { imm: 2, next: 2 }),                                                                         // E1 : + voisins
+    mix(T_BASE, { imm: 2, next: 2, left: 2 }),                                                                // E2 : + « à gauche de »
+    mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1 }),                                             // E3 : + bouts
+    mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 2 }),                                      // E4 : + « ou »
+    mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 2, between: 1.5 })                         // E5 : + « entre »
+  ];
+  // [maisons, catégories, nom, maxClues, [[type, minRounds], ...]]
+  var STAGES = [
+    [3, 3, 'Initiation', 8,  [[0, 1], [0, 2], [1, 2], [2, 3]]],
+    [3, 4, 'Facile',     10, [[0, 2], [1, 3], [2, 3], [3, 4]]],
+    [3, 5, 'Facile',     12, [[1, 3], [2, 3], [3, 4]]],
+    [4, 3, 'Facile',     14, [[1, 3], [2, 4], [3, 4], [4, 5]]],
+    [4, 4, 'Moyen',      17, [[1, 4], [2, 4], [3, 5], [4, 5], [5, 6]]],
+    [5, 3, 'Moyen',      19, [[1, 4], [2, 5], [4, 5]]],
+    [5, 4, 'Moyen',      23, [[1, 5], [2, 6], [3, 6], [4, 7], [5, 7]]],
+    [5, 5, 'Difficile',  27, [[1, 6], [2, 6], [3, 7], [4, 7], [5, 8]]],
+    [6, 4, 'Difficile',  29, [[2, 6], [3, 7], [4, 7], [5, 8]]]
+  ];
+  var LADDER = (function () {
+    var out = [], si, ti;
+    for (si = 0; si < STAGES.length; si++) for (ti = 0; ti < STAGES[si][4].length; ti++) out.push({ N: STAGES[si][0], K: STAGES[si][1], name: STAGES[si][2], maxClues: STAGES[si][3], tier: STAGES[si][4][ti][0], minRounds: STAGES[si][4][ti][1] });
+    return out;
+  })();
+
+  function isBreather(L) { return L >= 4 && L % 4 === 0; }
+
   function levelParams(L) {
     L = Math.max(1, L | 0);
-    var p;
-    if (L <= 2)       p = { N: 3, K: 3, w: T_BASE, minRounds: 2, minClues: 3, maxClues: 7, prune: 0.4, bias: 1, shuffle: false, name: 'Initiation' };
-    else if (L <= 5)  p = { N: 3, K: 4, w: mix(T_BASE, { imm: 1, next: 1, left: 1 }), minRounds: 3, minClues: 4, maxClues: 9, prune: 0.6, bias: 1, shuffle: false, name: 'Facile' };
-    else if (L <= 9)  p = { N: 4, K: 3, w: mix(T_BASE, { imm: 2, next: 2, left: 2 }), minRounds: 3 + (L > 7 ? 1 : 0), minClues: 5, maxClues: 11, prune: 0.8, bias: 0.8, shuffle: false, name: 'Facile' };
-    else if (L <= 14) p = { N: 4, K: 4, w: mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1 }), minRounds: 4 + (L > 12 ? 1 : 0), minClues: 7, maxClues: 14, prune: 1, bias: 0.7, shuffle: true, name: 'Moyen' };
-    else if (L <= 20) p = { N: 5, K: 4, w: mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 2 }), minRounds: 4 + (L > 17 ? 1 : 0), minClues: 9, maxClues: 17, prune: 1, bias: 0.6, shuffle: true, name: 'Moyen' };
-    else if (L <= 28) p = { N: 5, K: 5, w: mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 2, between: 1 }), minRounds: 5 + (L > 24 ? 1 : 0), minClues: 11, maxClues: 20, prune: 1, bias: 0.5, shuffle: true, name: 'Difficile' };
-    else              p = { N: 6, K: 5, w: mix({ same: 3, diff: 3, at: 1, notat: 1 }, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 3, between: 2 }), minRounds: Math.min(6 + Math.floor((L - 29) / 5), 10), minClues: 14, maxClues: 26, prune: 1, bias: 0.4, shuffle: true, name: L > 40 ? 'Expert' : 'Difficile' };
+    var j = L - 1 - Math.floor(L / 4);            // rang dans l'échelle (les niveaux « souffle » n'avancent pas)
+    var p, e, prune, bias;
+    if (isBreather(L)) {
+      // le souffle reprend une grille plus petite (5 rangs plus bas dans l'échelle, 4×4 au plus) avec des énoncés qui avancent vite
+      var q = Math.min(Math.max(0, j - 5), LADDER.length - 1);
+      while (q > 0 && LADDER[q].N * LADDER[q].K > 16) q--;
+      e = LADDER[q];
+      return { N: e.N, K: e.K, w: mix(TIERS[2], { at: 5, same: 6 }), minRounds: 1, minClues: 3, maxClues: e.maxClues, prune: 0.5, bias: 1, shuffle: false, name: 'Souffle', level: L, attempts: 30, breather: true };
+    }
+    if (j < LADDER.length) {
+      e = LADDER[j];
+      prune = Math.min(1, 0.45 + 0.02 * j); bias = Math.max(0.5, 1 - 0.015 * j);
+      p = { N: e.N, K: e.K, w: TIERS[e.tier], minRounds: e.minRounds, minClues: 3, maxClues: e.maxClues, prune: prune, bias: bias, shuffle: j >= 14, name: e.name };
+    } else {                                      // au-delà : grande grille 6×5, la difficulté monte par la profondeur
+      var k = j - LADDER.length;
+      p = { N: 6, K: 5, w: mix({ same: 3, diff: 3, at: 1, notat: 1 }, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 3, between: 2 }), minRounds: Math.min(8 + Math.floor(k / 4), 11), minClues: 14, maxClues: 32, prune: 1, bias: Math.max(0.4, 0.5 - 0.005 * k), shuffle: true, name: k >= 12 ? 'Expert' : 'Difficile' };
+    }
     p.level = L;
     p.attempts = 30;
     return p;
@@ -444,10 +485,9 @@ var Engine = (function () {
     return { N: 3, K: 3, w: mix(T_BASE, { imm: 1, next: 1, left: 1 }), minRounds: 3, minClues: 5, maxClues: 7, prune: 0.5, bias: 1, shuffle: false, name: 'Petite grille', level: 0, attempts: 40 };
   }
 
+  // le défi du jour garde exactement ses réglages d'origine (grille 5×4), indépendants de la courbe des niveaux
   function dailyParams() {
-    var p = levelParams(16);
-    p.name = 'Défi du jour';
-    return p;
+    return { N: 5, K: 4, w: mix(T_BASE, { imm: 2, next: 2, left: 2, end: 1, notend: 1, or: 2 }), minRounds: 4, minClues: 9, maxClues: 17, prune: 1, bias: 0.6, shuffle: true, name: 'Défi du jour', level: 16, attempts: 30 };
   }
 
   /* ---------- aides pour l'interface ---------- */
@@ -499,7 +539,7 @@ var Engine = (function () {
   }
 
   var api = {
-    POOL: POOL, POP: POP, generate: generate, levelParams: levelParams, dailyParams: dailyParams, quickParams: quickParams,
+    POOL: POOL, POP: POP, generate: generate, levelParams: levelParams, isBreather: isBreather, dailyParams: dailyParams, quickParams: quickParams,
     propagate: propagate, holds: holds, clueText: clueText, hint: hint, derive: derive, checkBoard: checkBoard, makeRng: makeRng
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -534,15 +574,57 @@ var Engine = (function () {
     },
     set: function (k, v) { mem[k] = v; try { window.localStorage.setItem('cqfd:' + k, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } }
   };
-  var prog = store.get('prog', null) || { level: 1, solved: 0, stars: 0, streak: 0, best: 0, lastDaily: '', daily: {}, done: {}, seenHow: false };
+  /* réglages de l'économie et des pubs (faciles à ajuster) */
+  var ECON = { hintPrices: [500, 750, 1000], gift: 1000, startCoins: 500, perStep: 4, noHintBonus: 0.5, dailyMult: 1.5, quickMult: 0.5 };
+  var ADS = { rewarded: 30, inter: 30, skipAfter: 5, every: 5, fromLevel: 10 };
+  var CUR = { one: 'gommette', many: 'gommettes' };
+  try { if (/[?&]fast\b/.test(location.search)) { ADS.rewarded = 2; ADS.inter = 2; ADS.skipAfter = 1; } } catch (e) { /* démo rapide indisponible */ }
+  function fmtN(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f'); }
+  function cur(n) { return fmtN(n) + ' ' + (n > 1 ? CUR.many : CUR.one); }
+
+  /* progression : une ancienne sauvegarde est complétée, jamais effacée */
+  var DEFAULTS = { level: 1, solved: 0, stars: 0, streak: 0, best: 0, lastDaily: '', daily: {}, done: {}, seenHow: false, coins: ECON.startCoins, giftDay: '', sinceAd: 0, log: [] };
+  var prog = store.get('prog', null) || {};
+  Object.keys(DEFAULTS).forEach(function (k) {
+    if (!(k in prog)) prog[k] = (DEFAULTS[k] && typeof DEFAULTS[k] === 'object') ? JSON.parse(JSON.stringify(DEFAULTS[k])) : DEFAULTS[k];
+  });
+  prog.v = 2;
   function save() { store.set('prog', prog); }
-  var VERSION = 'test-1';
+  save();
+  var VERSION = 'test-2';
   function logAdd(r) {
     prog.log = prog.log || [];
     prog.log.push(r);
     if (prog.log.length > 300) prog.log.shift();
     save();
   }
+  function logRec(x, r, stars) {
+    logAdd({ m: x.mode === 'daily' ? 'D' : x.mode === 'quick' ? 'Q' : 'L', l: x.level, t: x.elapsed, h: x.hints, e: x.mistakes, s: stars || 0, r: r, d: ymd() });
+  }
+
+  /* grilles en cours : une par mode (niveau, défi du jour, partie rapide) */
+  var saves = store.get('saves', null) || {};
+  function writeSaves() { store.set('saves', saves); }
+  function hasProgress(g) { return g.elapsed >= 15 || g.marks.some(function (x) { return x; }) || g.given.some(function (x) { return x >= 0; }); }
+  function snapshot() {
+    return { v: 2, mode: G.mode, level: G.level, date: G.date, name: G.prm.name, breather: !!G.prm.breather, pz: G.pz, marks: G.marks, given: G.given,
+             hist: G.hist.slice(-60), clueDone: G.clueDone, elapsed: G.elapsed, hints: G.hints, mistakes: G.mistakes, sigWrong: G.sigWrong };
+  }
+  function saveGame() {
+    if (!G || G.won) return;
+    if (hasProgress(G)) saves[G.mode] = snapshot(); else delete saves[G.mode];
+    writeSaves();
+  }
+  function dropSave(mode, abandoned) {
+    var s = saves[mode];
+    if (!s) return;
+    delete saves[mode]; writeSaves();
+    if (abandoned && s.elapsed >= 10) logRec(s, 'quit');
+  }
+  function validSave(s) {
+    return s && s.pz && s.pz.N && s.pz.K && s.marks && s.given && s.marks.length === s.pz.N * s.pz.K && s.given.length === s.marks.length && s.pz.solution && s.pz.clues;
+  }
+  Object.keys(saves).forEach(function (m) { if (!validSave(saves[m])) delete saves[m]; });
   function streakNow() { return (prog.lastDaily === ymd() || prog.lastDaily === yesterday()) ? prog.streak : 0; }
 
   /* ---------- pièces graphiques ---------- */
@@ -574,23 +656,29 @@ var Engine = (function () {
   }
 
   function renderHome() {
-    var L = prog.level, prm = E.levelParams(L), today = ymd(), d = prog.daily[today], st = streakNow();
+    if (saves.daily && saves.daily.date !== ymd()) dropSave('daily', true);
+    var sl = saves.level, L = sl ? sl.level : prog.level, prm = E.levelParams(L), today = ymd(), d = prog.daily[today], st = streakNow(), sd = saves.daily, sq = saves.quick;
     $('#lvl-n').textContent = L;
-    $('#tier').textContent = prm.name;
-    $('#lvl-meta').textContent = prm.N + ' maisons · ' + prm.K + ' catégories';
-    $('#sketch').innerHTML = sketchSVG(prm.N, prm.K, L);
-    $('#btn-play').textContent = L > 1 ? 'Reprendre le niveau ' + L : 'Commencer';
+    $('#tier').textContent = sl ? sl.name : prm.name;
+    $('#lvl-meta').textContent = (sl ? sl.pz.N : prm.N) + ' maisons · ' + (sl ? sl.pz.K : prm.K) + ' catégories' + (sl ? ' · en cours, ' + fmtTime(sl.elapsed) : '');
+    $('#sketch').innerHTML = sketchSVG(sl ? sl.pz.N : prm.N, sl ? sl.pz.K : prm.K, L);
+    $('#btn-play').textContent = (sl || L > 1) ? 'Reprendre le niveau ' + L : 'Commencer';
     $('#day-date').textContent = dateLabel();
-    $('#day-state').innerHTML = d ? 'Résolu en <b>' + fmtTime(d.t) + '</b> · ' + d.s + ' étoile' + (d.s > 1 ? 's' : '') : 'Pas encore résolu';
-    $('#btn-daily').textContent = d ? 'Rejouer' : 'Relever le défi';
+    $('#day-state').innerHTML = sd ? 'En cours · <b>' + fmtTime(sd.elapsed) + '</b>' : d ? 'Résolu en <b>' + fmtTime(d.t) + '</b> · ' + d.s + ' étoile' + (d.s > 1 ? 's' : '') : 'Pas encore résolu';
+    $('#btn-daily').textContent = sd ? 'Reprendre' : d ? 'Rejouer' : 'Relever le défi';
+    $('#coins-n').textContent = fmtN(prog.coins);
+    var gifted = prog.giftDay === today, gb = $('#btn-gift');
+    gb.setAttribute('aria-disabled', gifted ? 'true' : 'false');
+    $('#gift-sub').textContent = gifted ? 'Récupéré aujourd\'hui · reviens demain' : 'Regarde une pub · ' + cur(ECON.gift);
     $('#streak-t').textContent = 'Série · ' + st + (st > 1 ? ' jours' : ' jour');
     $('#streak').classList.toggle('off', st === 0);
     $('#st-solved').textContent = prog.solved;
     $('#st-stars').textContent = prog.stars;
     $('#st-best').textContent = prog.best;
-    $('#quick-sub').textContent = 'Une petite grille · environ 2 min' + (prog.quickBest ? ' · record ' + fmtTime(prog.quickBest) : '');
+    $('#quick-sub').textContent = sq ? 'Partie en cours · ' + fmtTime(sq.elapsed) + ' · touche pour reprendre'
+      : 'Une petite grille · environ 2 min' + (prog.quickBest ? ' · record ' + fmtTime(prog.quickBest) : '');
     var chips = '';
-    [1, 4, 8, 12, 16, 22, 30, 40].forEach(function (n) { chips += '<button class="jchip" data-level="' + n + '" aria-label="Niveau ' + n + '">' + n + '</button>'; });
+    [1, 5, 10, 15, 20, 30, 40, 50].forEach(function (n) { chips += '<button class="jchip" data-level="' + n + '" aria-label="Niveau ' + n + '">' + n + '</button>'; });
     $('#jump').innerHTML = chips;
   }
 
@@ -614,6 +702,12 @@ var Engine = (function () {
 
   function startGame(o) {
     closeLayer(); hideNote(); clearInterval(timerId);
+    // pub entre deux niveaux (jamais en cours de grille) : tous les 5 niveaux gagnés à partir du niveau 10, passable
+    if (o.mode === 'level' && !o.adDone && prog.sinceAd >= ADS.every && o.level >= ADS.fromLevel) {
+      playAd({ secs: ADS.inter, skipAfter: ADS.skipAfter, text: 'Publicité de démonstration. Dans la vraie version : 30 secondes au plus, à passer au bout de quelques secondes.',
+        onDone: function () { prog.sinceAd = 0; save(); o.adDone = true; startGame(o); } });
+      return;
+    }
     layer.innerHTML = '<div class="load" role="status">Préparation de la grille…</div>';
     setTimeout(function () {
       var prm, seed;
@@ -638,6 +732,40 @@ var Engine = (function () {
     }, 40);
   }
 
+  function resumeGame(s) {
+    closeLayer(); hideNote(); clearInterval(timerId);
+    G = {
+      mode: s.mode, level: s.level || 0, date: s.date || '', pz: s.pz, prm: { name: s.name, breather: !!s.breather }, N: s.pz.N, K: s.pz.K,
+      marks: s.marks.slice(), given: s.given.slice(), hist: s.hist || [], clueDone: s.clueDone || {}, elapsed: s.elapsed || 0,
+      hints: s.hints || 0, mistakes: s.mistakes || 0, won: false, sigWrong: s.sigWrong || '', err: [], hintCell: -1, hintClue: -1, sig: {}
+    };
+    G.cand = E.derive(G.N, G.K, G.marks, G.given);
+    buildGame();
+    show('game');
+    startTimer();
+  }
+
+  // point d'entrée des boutons : reprend la grille en cours si c'est la même, sinon demande
+  function launch(o) {
+    var s = saves[o.mode];
+    if (s && s.mode === 'daily' && s.date !== ymd()) { dropSave('daily', true); s = null; }
+    if (!s) { startGame(o); return; }
+    if ((o.mode === 'level' && s.level === o.level) || (o.mode === 'daily' && s.date === o.date)) { resumeGame(s); return; }
+    askReplace(s, o);
+  }
+  var replaceCtx = null;
+  function askReplace(s, o) {
+    replaceCtx = { s: s, o: o };
+    var what = s.mode === 'daily' ? 'Le défi du jour' : s.mode === 'quick' ? 'Ta partie rapide' : 'Le niveau ' + s.level;
+    var other = o.mode === 'quick' ? 'Nouvelle partie rapide' : o.mode === 'daily' ? 'Abandonner et jouer le défi' : 'Abandonner et jouer le niveau ' + o.level;
+    openLayer('<div class="scrim" data-close></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="rp-t">' +
+      '<h3 id="rp-t">Grille en cours</h3>' +
+      '<p class="meta">' + what + ' est commencé (' + fmtTime(s.elapsed) + ' de jeu). Tu peux le reprendre là où tu l\'as laissé.</p>' +
+      '<div class="stack"><button class="btn primary" data-do="rp-resume">Reprendre ma grille</button>' +
+      '<button class="btn" data-do="rp-new">' + other + '</button>' +
+      '<button class="linkbtn" data-close>Annuler</button></div></div>', '[data-do="rp-resume"]');
+  }
+
   function buildGame() {
     $('#g-name').textContent = G.mode === 'daily' ? 'Défi du jour' : G.mode === 'quick' ? 'Partie rapide' : 'Niveau ' + G.level;
     $('#g-sub').textContent = (G.mode === 'daily' ? dateLabel() : G.prm.name) + ' · ' + G.N + ' maisons, ' + G.K + ' catégories';
@@ -659,7 +787,7 @@ var Engine = (function () {
     $('#clue-list').innerHTML = ls;
     $('.c-scroll').scrollTop = 0;
     updateBoard(); updateClues(); updateTools();
-    $('#g-time').textContent = fmtTime(0);
+    $('#g-time').textContent = fmtTime(G.elapsed);
   }
 
   function cellLabel(c, p, n, m) {
@@ -706,6 +834,8 @@ var Engine = (function () {
     $('#t-check').disabled = G.won;
     $('#t-hint').disabled = G.won;
     $('#t-clear').disabled = G.won || !work;
+    var price = hintPrice();
+    $('#hint-badge').textContent = prog.coins >= price ? fmtN(price) : 'PUB';
   }
 
   function startTimer() {
@@ -714,6 +844,7 @@ var Engine = (function () {
       if (!G || G.won || document.hidden || $('.ad', layer) || $('.dlg', layer)) return;
       G.elapsed++;
       $('#g-time').textContent = fmtTime(G.elapsed);
+      if (G.elapsed % 5 === 0) saveGame();
     }, 1000);
   }
 
@@ -728,6 +859,7 @@ var Engine = (function () {
     if ($('#note').classList.contains('hint')) hideNote();
     updateBoard(); updateClues(); updateTools();
     afterChange();
+    saveGame();
   }
   function undo() {
     if (!G.hist.length || G.won) return;
@@ -736,6 +868,7 @@ var Engine = (function () {
     G.cand = E.derive(G.N, G.K, G.marks, G.given);
     G.err = []; G.hintCell = -1; G.hintClue = -1;
     hideNote(); updateBoard(); updateClues(); updateTools();
+    saveGame();
   }
   function afterChange() {
     var chk = E.checkBoard(G.pz, G.cand);
@@ -826,31 +959,68 @@ var Engine = (function () {
   function verify() {
     var wrong = wrongCells();
     if (!wrong.length) { toast('Aucune erreur pour l\'instant. Continue !', 2600); return; }
-    G.mistakes++; G.err = wrong; updateBoard();
+    G.mistakes++; G.err = wrong; updateBoard(); saveGame();
     var n = wrong.length;
     toast(n + (n > 1 ? ' cases sont à revoir : elles sont cerclées en rouge.' : ' case est à revoir : elle est cerclée en rouge.'), 4200);
   }
 
-  function openAd() {
-    if (G.won) return;
+  /* fausses pubs : même mise en scène pour les trois cas (indice, cadeau du jour, pause entre niveaux) */
+  var adCtx = null;
+  function playAd(o) {
+    adCtx = o;
+    var left = o.secs, passed = 0, skippable = o.skipAfter != null;
+    var buttons = skippable
+      ? '<button class="btn" id="ad-skip" data-do="ad-skip" disabled>Passer dans ' + o.skipAfter + ' s</button>'
+      : '<button class="btn" data-do="ad-cancel">Fermer</button><button class="btn primary" id="ad-ok" data-do="ad-claim" disabled>' + esc(o.claimLabel || 'Récupérer') + '</button>';
     openLayer('<div class="ad" role="dialog" aria-modal="true" aria-label="Publicité de démonstration"><div class="ad-in">' +
       '<span class="ad-tag">PUB · DÉMO</span>' +
-      '<div class="ad-screen"><div class="ad-ring"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="bg" cx="36" cy="36" r="30"/><circle class="fg" id="ad-fg" cx="36" cy="36" r="30"/></svg><b id="ad-n">3</b></div></div>' +
-      '<p id="ad-p">Ici, une courte vidéo récompensée (15 à 30 secondes) dans la vraie version. L\'indice est offert à la fin.</p>' +
-      '<div class="row"><button class="btn" data-do="ad-cancel">Fermer</button><button class="btn primary" id="ad-ok" data-do="ad-claim" disabled>Récupérer l\'indice</button></div></div></div>',
-      '[data-do="ad-cancel"]');
-    var n = 3, fg = $('#ad-fg');
-    if (fg) { fg.style.transition = 'stroke-dashoffset 3s linear'; requestAnimationFrame(function () { fg.style.strokeDashoffset = '0'; }); }
+      '<div class="ad-screen"><div class="ad-ring"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="bg" cx="36" cy="36" r="30"/><circle class="fg" id="ad-fg" cx="36" cy="36" r="30"/></svg><b id="ad-n">' + left + '</b></div></div>' +
+      '<p id="ad-p">' + esc(o.text) + '</p><div class="row">' + buttons + '</div></div></div>', skippable ? null : '[data-do="ad-cancel"]');
+    var fg = $('#ad-fg');
+    if (fg) { fg.style.transition = 'stroke-dashoffset ' + o.secs + 's linear'; requestAnimationFrame(function () { fg.style.strokeDashoffset = '0'; }); }
+    clearInterval(adTimer);
     adTimer = setInterval(function () {
-      n--;
+      left--; passed++;
       var el = $('#ad-n');
       if (!el) { clearInterval(adTimer); return; }
-      if (n > 0) { el.textContent = n; return; }
+      if (skippable) {
+        var sk = $('#ad-skip');
+        if (sk && passed >= o.skipAfter) { sk.disabled = false; sk.textContent = 'Passer'; sk.focus(); }
+        else if (sk) sk.textContent = 'Passer dans ' + (o.skipAfter - passed) + ' s';
+      }
+      if (left > 0) { el.textContent = left; return; }
       clearInterval(adTimer);
       el.textContent = '✓';
-      $('#ad-p').textContent = 'Merci ! Ton indice est prêt.';
+      if (skippable) { var cb = adCtx && adCtx.onDone; closeLayer(); if (cb) cb(); return; }
+      $('#ad-p').textContent = 'Merci ! Ta récompense est prête.';
       var ok = $('#ad-ok'); ok.disabled = false; ok.focus();
     }, 1000);
+  }
+  function adFinish() { var cb = adCtx && adCtx.onDone; closeLayer(); if (cb) cb(); }
+
+  function hintPrice() { return ECON.hintPrices[Math.min(G ? G.hints : 0, ECON.hintPrices.length - 1)]; }
+  function openHint() {
+    if (!G || G.won) return;
+    if (!E.hint(G.pz, G.cand)) { toast('Rien de plus à déduire : il ne reste qu\'à valider des cases avec ✓.', 4000); return; }
+    var price = hintPrice(), can = prog.coins >= price;
+    openLayer('<div class="scrim" data-close></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="hi-t">' +
+      '<h3 id="hi-t">Un indice ?</h3>' +
+      '<p class="meta">Prix : <b>' + cur(price) + '</b>' + (G.hints ? ' (il monte à chaque indice dans une même grille)' : '') + '.<br>Tu as ' + cur(prog.coins) + '.</p>' +
+      '<div class="stack"><button class="btn primary" data-do="hint-pay"' + (can ? '' : ' disabled') + '>' + (can ? 'Payer ' + fmtN(price) : 'Il t\'en manque ' + fmtN(price - prog.coins)) + '</button>' +
+      '<button class="btn" data-do="hint-ad">Regarder une pub · gratuit</button>' +
+      '<button class="linkbtn" data-close>Annuler</button></div></div>', can ? '[data-do="hint-pay"]' : '[data-do="hint-ad"]');
+  }
+  function hintByAd() {
+    playAd({ secs: ADS.rewarded, claimLabel: 'Récupérer l\'indice', text: 'Publicité de démonstration. Dans la vraie version : une vidéo de 30 à 45 secondes, à regarder en entier. L\'indice est offert à la fin, sans toucher à tes gommettes.',
+      onDone: function () { if (G && !G.won) giveHint(); } });
+  }
+  function claimGift() {
+    if (prog.giftDay === ymd()) return;
+    playAd({ secs: ADS.rewarded, claimLabel: 'Récupérer ' + fmtN(ECON.gift), text: 'Publicité de démonstration. Dans la vraie version : une vidéo de 30 à 45 secondes, à regarder en entier. Récompense : ' + cur(ECON.gift) + ', une fois par jour.',
+      onDone: function () {
+        prog.coins += ECON.gift; prog.giftDay = ymd(); save(); renderHome();
+        var c = $('#coins'); c.classList.remove('pulse'); void c.offsetWidth; c.classList.add('pulse');
+      } });
   }
 
   function giveHint() {
@@ -863,7 +1033,7 @@ var Engine = (function () {
     note('hint', h.kind === 'clue'
       ? 'Relis l\'énoncé n°' + (h.clue + 1) + ' : il permet d\'éliminer <b>' + esc(it.l) + '</b> de la maison ' + (h.p + 1) + ' (ligne ' + cat.name + ').'
       : '<b>' + esc(it.l) + '</b> ne peut plus aller que dans la maison ' + (h.p + 1) + ' (ligne ' + cat.name + '). Touche la case et valide-la avec ✓.', 0);
-    updateBoard(); updateClues();
+    updateBoard(); updateClues(); updateTools(); saveGame();
     if (h.kind === 'clue') {
       var b = $('.clue[data-i="' + h.clue + '"]');
       if (b && b.scrollIntoView) b.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -877,8 +1047,19 @@ var Engine = (function () {
   }
 
   /* victoire */
+  function winReward() {
+    var first = G.mode === 'level' ? !prog.done[G.level] : G.mode === 'daily' ? !prog.daily[G.date] : true;
+    if (!first) return { coins: 0, bonus: false };
+    var steps = G.pz.steps.filter(function (s) { return typeof s.why === 'number'; }).length;
+    var bonus = G.hints === 0, mult = bonus ? 1 + ECON.noHintBonus : 1;
+    if (G.mode === 'daily') mult *= ECON.dailyMult;
+    if (G.mode === 'quick') mult *= ECON.quickMult;
+    return { coins: Math.round(steps * ECON.perStep * mult / 5) * 5, bonus: bonus };
+  }
   function recordWin(stars) {
-    logAdd({ m: G.mode === 'daily' ? 'D' : G.mode === 'quick' ? 'Q' : 'L', l: G.level, t: G.elapsed, h: G.hints, e: G.mistakes, s: stars, r: 'ok', d: ymd() });
+    logRec(G, 'ok', stars);
+    G.reward = winReward();
+    prog.coins += G.reward.coins;
     if (G.mode === 'quick') {
       prog.quick = (prog.quick || 0) + 1;
       prog.quickBest = Math.min(prog.quickBest || 1e9, G.elapsed);
@@ -887,6 +1068,7 @@ var Engine = (function () {
       if (!prev) prog.solved++;
       if (stars > prev) { prog.stars += stars - prev; prog.done[G.level] = stars; }
       prog.level = Math.max(prog.level, G.level + 1);
+      if (G.level >= ADS.fromLevel) prog.sinceAd = (prog.sinceAd || 0) + 1;
     } else if (!prog.daily[G.date]) {
       prog.daily[G.date] = { t: G.elapsed, s: stars };
       prog.stars += stars;
@@ -894,6 +1076,7 @@ var Engine = (function () {
       prog.lastDaily = G.date;
       prog.best = Math.max(prog.best, prog.streak);
     }
+    delete saves[G.mode]; writeSaves();
     save();
   }
   function win() {
@@ -914,22 +1097,20 @@ var Engine = (function () {
       '<p class="stamp">CQFD</p>' +
       '<div class="grade"><span>' + grade + '</span><span class="stars" role="img" aria-label="' + G.stars + ' étoile' + (G.stars > 1 ? 's' : '') + ' sur 3">' + stars + '</span></div>' +
       '<p class="res">' + res + '</p>' +
+      (G.reward && G.reward.coins ? '<p class="gain"><i class="sticker"></i><span>+ ' + cur(G.reward.coins) + (G.reward.bonus ? ' · bonus sans indice' : '') + '</span></p>' : '') +
       '<div class="acts">' + next + '<button class="btn' + (next ? '' : ' primary') + '" data-do="home">Accueil</button></div></div></div>',
       '.btn.primary');
   }
 
-  // une grille quittée sans être finie compte comme un abandon (sauf si elle a duré moins de 10 s)
-  function logQuit() {
-    if (!G || G.won || G.elapsed < 10) return;
-    logAdd({ m: G.mode === 'daily' ? 'D' : G.mode === 'quick' ? 'Q' : 'L', l: G.level, t: G.elapsed, h: G.hints, e: G.mistakes, s: 0, r: 'quit', d: ymd() });
-  }
   function reportText() {
-    var rows = prog.log || [], out = ['CQFD · journal de jeu (version ' + VERSION + ')', 'Écran ' + window.innerWidth + '×' + window.innerHeight + ' · ' + new Date().toLocaleDateString('fr-FR'), ''];
+    var rows = prog.log || [], out = ['CQFD · journal de jeu (version ' + VERSION + ')', 'Écran ' + window.innerWidth + '×' + window.innerHeight + ' · ' + new Date().toLocaleDateString('fr-FR'),
+      'Niveau atteint : ' + prog.level + ' · gommettes : ' + prog.coins, ''];
     rows.forEach(function (x) {
-      var what = x.m === 'L' ? 'Niveau ' + x.l : x.m === 'Q' ? 'Partie rapide' : 'Défi du jour';
+      var what = x.m === 'L' ? 'Niveau ' + x.l : x.m === 'Q' ? 'Partie rapide' : 'Défi du jour', hint = x.h + ' indice' + (x.h > 1 ? 's' : '');
       out.push(what + ' · ' + (x.r === 'ok'
-        ? 'résolu en ' + fmtTime(x.t) + ' · ' + x.h + ' indice' + (x.h > 1 ? 's' : '') + ' · ' + x.e + ' erreur' + (x.e > 1 ? 's' : '')
-        : 'abandonné après ' + fmtTime(x.t) + ' · ' + x.h + ' indice' + (x.h > 1 ? 's' : '')));
+        ? 'résolu en ' + fmtTime(x.t) + ' · ' + hint + ' · ' + x.e + ' erreur' + (x.e > 1 ? 's' : '')
+        : x.r === 'pause' ? 'mis en pause à ' + fmtTime(x.t) + ' · ' + hint
+        : 'abandonné à ' + fmtTime(x.t) + ' · ' + hint));
     });
     if (!rows.length) out.push('(aucune partie jouée pour l\'instant)');
     return out.join('\n');
@@ -951,14 +1132,15 @@ var Engine = (function () {
       '<li>Chaque maison abrite exactement un élément de chaque catégorie, et aucun ne se répète.</li>' +
       '<li>Lis les énoncés, puis touche une case. <svg class="ic-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg> élimine une possibilité, <svg class="ic-ok" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 6.5"/></svg> la valide.</li>' +
       '<li>Touche un énoncé pour le barrer quand tu l\'as exploité.</li>' +
-      '<li>Bloqué ? Un indice, offert après une courte pub, te montre l\'énoncé à relire.</li>' +
+      '<li>Bloqué ? Un indice te montre l\'énoncé à relire. Il coûte des gommettes, gagnées en résolvant des grilles, ou s\'obtient en regardant une pub.</li>' +
       '</ol><button class="btn primary" data-do="how-ok">C\'est parti</button></div>', '.dlg .btn');
   }
 
   /* ---------- événements ---------- */
-  $('#btn-play').addEventListener('click', function () { startGame({ mode: 'level', level: prog.level }); });
-  $('#btn-daily').addEventListener('click', function () { startGame({ mode: 'daily', date: ymd() }); });
-  $('#btn-quick').addEventListener('click', function () { startGame({ mode: 'quick' }); });
+  $('#btn-play').addEventListener('click', function () { launch({ mode: 'level', level: saves.level ? saves.level.level : prog.level }); });
+  $('#btn-daily').addEventListener('click', function () { launch({ mode: 'daily', date: ymd() }); });
+  $('#btn-quick').addEventListener('click', function () { launch({ mode: 'quick' }); });
+  $('#btn-gift').addEventListener('click', claimGift);
   $('#btn-how').addEventListener('click', openHow);
   $('#btn-log').addEventListener('click', function () {
     var text = reportText();
@@ -967,11 +1149,12 @@ var Engine = (function () {
   });
   $('#jump').addEventListener('click', function (e) {
     var b = e.target.closest('[data-level]');
-    if (b) startGame({ mode: 'level', level: +b.dataset.level });
+    if (b) launch({ mode: 'level', level: +b.dataset.level });
   });
 
   $('#g-back').addEventListener('click', function () {
-    logQuit(); clearInterval(timerId); closeLayer(); hideNote(); disarmClear(); G = null; show('home');
+    if (G && !G.won) { saveGame(); if (G.elapsed >= 10) logRec(G, 'pause'); }
+    clearInterval(timerId); closeLayer(); hideNote(); disarmClear(); G = null; show('home');
   });
   $('#board').addEventListener('click', function (e) {
     var cell = e.target.closest('.cell');
@@ -982,11 +1165,11 @@ var Engine = (function () {
     if (!b || !G) return;
     var i = +b.dataset.i;
     G.clueDone[i] = !G.clueDone[i];
-    updateClues();
+    updateClues(); saveGame();
   });
   $('#t-undo').addEventListener('click', undo);
   $('#t-check').addEventListener('click', verify);
-  $('#t-hint').addEventListener('click', openAd);
+  $('#t-hint').addEventListener('click', openHint);
   $('#t-clear').addEventListener('click', function () {
     if (!clearArmed) {
       clearArmed = true; this.classList.add('warn'); $('#t-clear .tl').textContent = 'Sûr ?';
@@ -995,7 +1178,7 @@ var Engine = (function () {
     }
     disarmClear();
     commit(function () { G.marks.fill(0); G.given.fill(-1); });
-    G.clueDone = {}; updateClues();
+    G.clueDone = {}; updateClues(); saveGame();
   });
   $('#note').addEventListener('click', function (e) {
     if (!e.target.closest('[data-note-ok]')) return;
@@ -1013,7 +1196,14 @@ var Engine = (function () {
       refreshSheet();
     } else if (d === 'how-ok') { prog.seenHow = true; save(); closeLayer(); }
     else if (d === 'ad-cancel') closeLayer();
-    else if (d === 'ad-claim') { closeLayer(); giveHint(); }
+    else if (d === 'ad-claim' || d === 'ad-skip') { if (!t.disabled) { clearInterval(adTimer); adFinish(); } }
+    else if (d === 'hint-pay') {
+      var price = hintPrice();
+      if (G && !G.won && prog.coins >= price) { prog.coins -= price; save(); closeLayer(); giveHint(); }
+    }
+    else if (d === 'hint-ad') { closeLayer(); hintByAd(); }
+    else if (d === 'rp-resume') { var c1 = replaceCtx; replaceCtx = null; if (c1) resumeGame(c1.s); }
+    else if (d === 'rp-new') { var c2 = replaceCtx; replaceCtx = null; if (c2) { dropSave(c2.s.mode, true); startGame(c2.o); } }
     else if (d === 'next') startGame({ mode: 'level', level: G.level + 1 });
     else if (d === 'quick-again') startGame({ mode: 'quick' });
     else if (d === 'home') { clearInterval(timerId); closeLayer(); hideNote(); G = null; show('home'); }
@@ -1027,6 +1217,8 @@ var Engine = (function () {
   });
 
   /* ---------- démarrage ---------- */
+  document.addEventListener('visibilitychange', function () { if (document.hidden) saveGame(); });
+  window.addEventListener('pagehide', saveGame);
   show('home');
   // hors ligne : uniquement pour la version publiée sur un site (présence du manifeste)
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && document.querySelector('link[rel="manifest"]')) {
