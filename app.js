@@ -617,7 +617,7 @@ var Engine = (function () {
   prog.v = 2;
   function save() { store.set('prog', prog); }
   save();
-  var VERSION = 'test-2.3';
+  var VERSION = 'test-2.4';
   function logAdd(r) {
     prog.log = prog.log || [];
     prog.log.push(r);
@@ -1252,6 +1252,14 @@ var Engine = (function () {
   show('home');
   // hors ligne : uniquement pour la version publiée sur un site (présence du manifeste)
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && document.querySelector('link[rel="manifest"]')) {
-    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* non bloquant */ }); });
+    window.addEventListener('load', function () {
+      var had = !!navigator.serviceWorker.controller, pending = false;
+      // nouvelle version prise en charge : on recharge dès qu'on est sur l'accueil (jamais en pleine grille ; tout est sauvegardé)
+      navigator.serviceWorker.addEventListener('controllerchange', function () { if (had) pending = true; had = true; });
+      setInterval(function () { var h = document.getElementById('home'); if (pending && h && !h.hidden && !document.hidden) location.reload(); }, 1500);
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) reg.update().catch(function () {}); });
+      }).catch(function () { /* non bloquant */ });
+    });
   }
 })();

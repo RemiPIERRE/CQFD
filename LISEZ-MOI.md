@@ -1,5 +1,7 @@
 # CQFD – version test 2.1 (GitHub Pages)
 
+Nouveau en 2.4 : mise à jour automatique de l'appli installée (réseau d'abord, rechargement sur l'accueil). Une dernière réinstallation du raccourci est nécessaire pour y passer.
+
 Nouveau en 2.3 : une pub passable toutes les 4 parties rapides terminées (réglage `ADS.quickEvery`).
 
 Nouveau en 2.2 : catégorie **Sport** (10 sports, « pratique le… »). Les grilles générées changent (donc aussi le défi du jour) ; les parties en cours sauvegardées ne bougent pas.
