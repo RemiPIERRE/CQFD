@@ -1,5 +1,7 @@
 # CQFD – version test 2.1 (GitHub Pages)
 
+Nouveau en 2.5 : le cadre des énoncés garde une hauteur minimale fixe (la page défile quand la grille est haute, les outils restent en bas) et un clic sur « Énoncés » affiche tous les énoncés en grand.
+
 Nouveau en 2.4 : mise à jour automatique de l'appli installée (réseau d'abord, rechargement sur l'accueil). Une dernière réinstallation du raccourci est nécessaire pour y passer.
 
 Nouveau en 2.3 : une pub passable toutes les 4 parties rapides terminées (réglage `ADS.quickEvery`).

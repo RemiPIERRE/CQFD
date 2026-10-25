@@ -140,13 +140,13 @@ var Engine = (function () {
       case 'at':
         if (house) {
           var H = cap(A.it.o);
-          if (p === 0) return H + ' est la première.';
-          if (p === N - 1) return H + ' est la dernière.';
+          if (p === 0) return H + ' est la première, tout à gauche.';
+          if (p === N - 1) return H + ' est la dernière, tout à droite.';
           if (p === mid) return H + ' est celle du milieu.';
-          return H + ' porte le n° ' + (p + 1) + '.';
+          return H + ' porte le numéro ' + (p + 1) + '.';
         }
-        if (p === 0) return S + ' habite la première maison.';
-        if (p === N - 1) return S + ' habite la dernière maison.';
+        if (p === 0) return S + ' habite la première maison, tout à gauche.';
+        if (p === N - 1) return S + ' habite la dernière maison, tout à droite.';
         if (p === mid) return S + ' habite la maison du milieu.';
         return S + ' habite la maison n°' + (p + 1) + '.';
       case 'notat':
@@ -154,7 +154,7 @@ var Engine = (function () {
           var H2 = cap(A.it.o);
           if (p === 0) return H2 + " n'est pas la première.";
           if (p === N - 1) return H2 + " n'est pas la dernière.";
-          return H2 + " ne porte pas le n° " + (p + 1) + '.';
+          return H2 + " ne porte pas le numéro " + (p + 1) + '.';
         }
         if (p === 0) return S + " n'habite pas la première maison.";
         if (p === N - 1) return S + " n'habite pas la dernière maison.";
@@ -617,7 +617,7 @@ var Engine = (function () {
   prog.v = 2;
   function save() { store.set('prog', prog); }
   save();
-  var VERSION = 'test-2.4';
+  var VERSION = 'test-2.5';
   function logAdd(r) {
     prog.log = prog.log || [];
     prog.log.push(r);
@@ -1159,6 +1159,18 @@ var Engine = (function () {
     if (ta && !copied) ta.select();
   }
 
+  function openClues() {
+    if (!G) return;
+    var ls = '';
+    G.pz.clues.forEach(function (cl, i) {
+      ls += '<li><button class="clue" data-i="' + i + '" aria-pressed="false"><span class="cn">' + (i + 1) + '</span><span class="ct"><span class="tx">' + esc(cl.text) + '</span></span></button></li>';
+    });
+    openLayer('<div class="scrim" data-close></div><div class="dlg dlg-clues" role="dialog" aria-modal="true" aria-labelledby="cl-t">' +
+      '<div class="sh-head"><h3 id="cl-t">Énoncés</h3><button class="icon-btn" data-close aria-label="Fermer">' + ICON.cross + '</button></div>' +
+      '<div class="c-scroll"><ol>' + ls + '</ol></div></div>', '.dlg .icon-btn');
+    updateClues();
+  }
+
   function openHow() {
     openLayer('<div class="scrim" data-do="how-ok"></div><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="how-t">' +
       '<h3 id="how-t">Comment jouer</h3><ol>' +
@@ -1197,6 +1209,8 @@ var Engine = (function () {
     G.clueDone[i] = !G.clueDone[i];
     updateClues(); saveGame();
   });
+  $('#c-open').addEventListener('click', openClues);
+  $('#c-open').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openClues(); } });
   $('#t-undo').addEventListener('click', undo);
   $('#t-check').addEventListener('click', verify);
   $('#t-hint').addEventListener('click', openHint);
@@ -1216,6 +1230,8 @@ var Engine = (function () {
   });
 
   layer.addEventListener('click', function (e) {
+    var cb = e.target.closest('.clue');
+    if (cb && G) { var ci = +cb.dataset.i; G.clueDone[ci] = !G.clueDone[ci]; updateClues(); saveGame(); return; }
     var t = e.target.closest('[data-close],[data-act],[data-do]');
     if (!t) return;
     if (t.hasAttribute('data-act')) { sheetAction(t.dataset.act, +t.dataset.v); return; }
